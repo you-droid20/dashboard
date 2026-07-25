@@ -1,0 +1,69 @@
+pipeline:
+  name: dashboard-app-ci-cd
+  identifier: dashboard_app_ci_cd
+  projectIdentifier: <YOUR_PROJECT_ID>
+  orgIdentifier: <YOUR_ORG_ID>
+  tags: {}
+  stages:
+    - stage:
+        name: Build and Push Image
+        identifier: Build_and_Push_Image
+        type: CI
+        spec:
+          cloneCodebase: true
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          execution:
+            steps:
+              - step:
+                  type: BuildAndPushDockerRegistry
+                  name: Build and Push
+                  identifier: Build_and_Push
+                  spec:
+                    connectorRef: <YOUR_DOCKER_CONNECTOR_ID>
+                    repo: <YOUR_DOCKERHUB_OR_REGISTRY>/dashboard-app
+                    tags:
+                      - <+pipeline.sequenceId>
+                      - latest
+                    dockerfile: Dockerfile
+                    context: .
+
+    - stage:
+        name: Deploy to Kubernetes
+        identifier: Deploy_to_Kubernetes
+        type: Deployment
+        spec:
+          deploymentType: Kubernetes
+          service:
+            serviceRef: dashboard_app_service
+          environment:
+            environmentRef: <YOUR_ENVIRONMENT_ID>
+            infrastructureDefinitions:
+              - identifier: <YOUR_INFRA_ID>
+          execution:
+            steps:
+              - step:
+                  name: Rollout Deployment
+                  identifier: rolloutDeployment
+                  type: K8sRollingDeploy
+                  timeout: 10m
+                  spec:
+                    skipDryRun: false
+            rollbackSteps:
+              - step:
+                  name: Rollback Rollout Deployment
+                  identifier: rollbackRolloutDeployment
+                  type: K8sRollingRollback
+                  timeout: 10m
+                  spec: {}
+        tags: {}
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: StageRollback
